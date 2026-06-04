@@ -1,12 +1,12 @@
 const express = require("express");
 const cors = require("cors");
-const Anthropic = require("@anthropic-ai/sdk");
+const Groq = require("groq-sdk");
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "50kb" }));
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 app.post("/analyze", async (req, res) => {
   const { cv } = req.body;
@@ -15,13 +15,12 @@ app.post("/analyze", async (req, res) => {
   }
 
   try {
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
+    const completion = await groq.chat.completions.create({
+      model: "llama3-8b-8192",
       messages: [
         {
           role: "user",
-          content: `Tu es un expert en recrutement data & IA et en optimisation ATS (Applicant Tracking System).
+          content: `Tu es un expert en recrutement data & IA et en optimisation ATS.
 Analyse ce CV et retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, sans markdown, sans backticks.
 
 Structure JSON attendue :
@@ -38,23 +37,25 @@ Critères d'évaluation ATS pour les métiers data :
 - Présence de mots-clés techniques data (SQL, Python, Power BI, etc.)
 - Structure claire (expériences, formations, compétences)
 - Quantification des résultats
-- Adéquation avec les standards ATS (pas de tableaux complexes, pas d'images)
-- Pertinence pour le marché data français
+- Adéquation avec les standards ATS
+- Pertinence pour le marché data
 
 CV à analyser :
 ${cv}`
         }
-      ]
+      ],
+      temperature: 0.3,
+      max_tokens: 1024,
     });
 
-    const raw = message.content[0].text.trim();
+    const raw = completion.choices[0].message.content.trim();
     const parsed = JSON.parse(raw);
     res.json(parsed);
 
   } catch (err) {
     console.error(err);
     if (err instanceof SyntaxError) {
-      return res.status(500).json({ error: "Erreur de parsing JSON depuis Claude." });
+      return res.status(500).json({ error: "Erreur de parsing JSON." });
     }
     res.status(500).json({ error: "Erreur serveur : " + err.message });
   }
